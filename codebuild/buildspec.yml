@@ -28,7 +28,7 @@ phases:
       - aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 936289044322.dkr.ecr.eu-west-1.amazonaws.com
       - docker pull 936289044322.dkr.ecr.eu-west-1.amazonaws.com/base/php:8.3.14-multi-arc
       - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 539389951722.dkr.ecr.us-east-1.amazonaws.com
-      - REPOSITORY_URI=539389951722.dkr.ecr.us-east-1.amazonaws.com/web/maildev
+      - REPOSITORY_URI=539389951722.dkr.ecr.us-east-1.amazonaws.com/mirror/maildev
       - aws ecr describe-repositories --repository-names $(echo $REPOSITORY_URI | cut -c46-) 2>&1 > /dev/null || aws ecr create-repository --repository-name $(echo $REPOSITORY_URI | cut -c46-)
       - IMAGE_TAG=$(echo $NAMESPACE-v$CODEBUILD_BUILD_NUMBER)
       - find . \( -type d -name .git -prune \) -o -type f -print0 | xargs -0 sed -i 's/inone.useinsider.com/inone.insidethekube.com/g;s/api.useinsider.com/api.insidethekube.com/g;s/inone.devops.useinsider.com/inone.insidethekube.com/g'
@@ -50,9 +50,9 @@ phases:
       - helm dependency build
       - |
         if [ "$REQUEST_TYPE" = "automation" ]; then
-           helm upgrade --install maildev . --force --namespace=$NAMESPACE --create-namespace --set env.COMMIT_HASH=$CODEBUILD_RESOLVED_SOURCE_VERSION --set image.tag=$IMAGE_TAG $VISION_PARAMETERS -f values-automation.yaml --timeout 10m
+           helm upgrade --install maildev . --force --namespace=$NAMESPACE --create-namespace --set env.COMMIT_HASH=$CODEBUILD_RESOLVED_SOURCE_VERSION $VISION_PARAMETERS -f values-automation.yaml --timeout 10m
         else
-           helm upgrade --install maildev . --force --namespace=$NAMESPACE --create-namespace --set env.COMMIT_HASH=$CODEBUILD_RESOLVED_SOURCE_VERSION --set image.tag=$IMAGE_TAG $VISION_PARAMETERS --timeout 10m
+           helm upgrade --install maildev . --force --namespace=$NAMESPACE --create-namespace --set env.COMMIT_HASH=$CODEBUILD_RESOLVED_SOURCE_VERSION $VISION_PARAMETERS --timeout 10m
         fi
       - printf '[{"name":"nodejs","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
       - cat imagedefinitions.json
