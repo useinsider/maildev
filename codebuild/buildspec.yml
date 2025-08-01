@@ -1,0 +1,61 @@
+version: 0.2
+env:
+  parameter-store:
+    base_url: /DEVOPS/GIT_BASE_URL
+    ssh_key: /DEVOPS/ID_RSA
+    ssh_pub: /DEVOPS/ID_RSA_PUB
+    aws_access_key_id: /DEVOPS/AWS_ACCESS_KEY_ID
+    aws_secret_access_key: /DEVOPS/AWS_SECRET_ACCESS_KEY
+phases:
+  install:
+    commands:
+      - echo "[INFO] STARTED TO RUN INSTALL PHASE"
+      - echo "$PHASE_INSTALL_COMMANDS" | base64 --decode > /tmp/install_phase.sh
+      - chmod +x /tmp/install_phase.sh
+      - bash -e /tmp/install_phase.sh
+      - echo "[INFO] INSTALL PHASE COMPLETED"
+  pre_build:
+    commands:
+      - |
+        if [ "$EXTRA_BRANCHES" ]; then
+          echo "Merging extra branches"
+          sed -i "s#https://github.com/useinsider#$base_url#g" .git/config
+          git config pull.rebase false
+          for branch in $EXTRA_BRANCHES; do echo "Merging $branch" && git pull --no-edit origin $branch || echo "Merge error for $branch" && git reset --hard; done
+        fi
+      - echo Update kubeconfig…
+      - aws eks update-kubeconfig  --name eks-qa --region us-east-1
+      - aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin 936289044322.dkr.ecr.eu-west-1.amazonaws.com
+      - docker pull 936289044322.dkr.ecr.eu-west-1.amazonaws.com/base/php:8.3.14-multi-arc
+      - aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 539389951722.dkr.ecr.us-east-1.amazonaws.com
+      - REPOSITORY_URI=539389951722.dkr.ecr.us-east-1.amazonaws.com/web/maildev
+      - aws ecr describe-repositories --repository-names $(echo $REPOSITORY_URI | cut -c46-) 2>&1 > /dev/null || aws ecr create-repository --repository-name $(echo $REPOSITORY_URI | cut -c46-)
+      - IMAGE_TAG=$(echo $NAMESPACE-v$CODEBUILD_BUILD_NUMBER)
+      - find . \( -type d -name .git -prune \) -o -type f -print0 | xargs -0 sed -i 's/inone.useinsider.com/inone.insidethekube.com/g;s/api.useinsider.com/api.insidethekube.com/g;s/inone.devops.useinsider.com/inone.insidethekube.com/g'
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the PHP Docker image...
+      - docker build --build-arg -f "Dockerfile" -t $REPOSITORY_URI:$IMAGE_TAG . --add-host registry.devops.internal.web:52.50.104.74 --add-host os.registry.devops.internal.web:52.50.104.74
+      - docker tag $REPOSITORY_URI:$IMAGE_TAG $REPOSITORY_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker images...
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo Deploying helm into cluster
+      - cd $CODEBUILD_SRC_DIR/../helm-repository/maildev
+      - helm un --wait maildev --namespace=$NAMESPACE || exit 0
+      - helm dependency update
+      - helm dependency build
+      - |
+        if [ "$REQUEST_TYPE" = "automation" ]; then
+           helm upgrade --install maildev . --force --namespace=$NAMESPACE --create-namespace --set env.COMMIT_HASH=$CODEBUILD_RESOLVED_SOURCE_VERSION --set image.tag=$IMAGE_TAG $VISION_PARAMETERS -f values-automation.yaml --timeout 10m
+        else
+           helm upgrade --install maildev . --force --namespace=$NAMESPACE --create-namespace --set env.COMMIT_HASH=$CODEBUILD_RESOLVED_SOURCE_VERSION --set image.tag=$IMAGE_TAG $VISION_PARAMETERS --timeout 10m
+        fi
+      - printf '[{"name":"nodejs","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
+      - cat imagedefinitions.json
+artifacts:
+  files:
+    - imagedefinitions.json
