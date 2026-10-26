@@ -64,6 +64,9 @@
     "socket.io-adapter": "2.5.5",
     "mocha": {
       "js-yaml": "^4.3.2"
+    },
+    "smtp-server": {
+      "nodemailer": "$nodemailer"
     }
   },
   "devDependencies": {
