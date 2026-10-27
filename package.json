@@ -47,21 +47,27 @@
     "addressparser": "1.0.1",
     "async": "^3.2.3",
     "commander": "^12.1.0",
-    "compression": "^1.7.4",
+    "compression": "^1.8.2",
     "cors": "^2.8.5",
     "dompurify": "^3.1.6",
     "express": "^4.21.2",
     "iconv-lite": "0.5.0",
     "jsdom": "^24.1.1",
     "mime": "2.4.4",
-    "nodemailer": "^6.9.14",
+    "nodemailer": "^10.2.1",
     "smtp-server": "^3.13.4",
-    "socket.io": "^4.7.5",
+    "socket.io": "^4.8.4",
     "uue": "3.1.2",
     "wildstring": "1.0.9"
   },
   "overrides": {
-    "socket.io-adapter": "2.5.5"
+    "socket.io-adapter": "2.5.5",
+    "mocha": {
+      "js-yaml": "^4.3.2"
+    },
+    "smtp-server": {
+      "nodemailer": "$nodemailer"
+    }
   },
   "devDependencies": {
     "expect": "^29.7.0",
@@ -75,7 +81,7 @@
     "standard": "^17.1.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "standard": {
     "ignore": [
