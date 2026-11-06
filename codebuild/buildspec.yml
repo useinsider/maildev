@@ -64,16 +64,7 @@ phases:
       - cd $CODEBUILD_SRC_DIR/../helm-repository/maildev
       - helm dependency update
       - helm dependency build
-      - |
-        MAILDEV_IMAGE_FLAGS="--set image.repository=$REPOSITORY_URI --set image.tag=$IMAGE_TAG"
-        helm upgrade --install maildev . \
-          --namespace=$NAMESPACE \
-          --create-namespace \
-          --set env.COMMIT_HASH=$CODEBUILD_RESOLVED_SOURCE_VERSION \
-          $MAILDEV_IMAGE_FLAGS \
-          $VISION_PARAMETERS \
-          --wait \
-          --timeout 20m
+      - helm upgrade --install maildev . --namespace=$NAMESPACE --create-namespace --set env.COMMIT_HASH=$CODEBUILD_RESOLVED_SOURCE_VERSION --set image.tag=$IMAGE_TAG $VISION_PARAMETERS --wait --timeout 20m
       - printf '[{"name":"nodejs","imageUri":"%s"}]' $REPOSITORY_URI:$IMAGE_TAG > imagedefinitions.json
       - cat imagedefinitions.json
 artifacts:
