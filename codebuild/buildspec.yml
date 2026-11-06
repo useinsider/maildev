@@ -51,7 +51,10 @@ phases:
         KUBECTL_CONTEXT=""
         if [ -n "$KUBE_CONTEXT" ]; then KUBECTL_CONTEXT="--context=$KUBE_CONTEXT"; fi
         for attempt in $(seq 1 80); do
-          OWNER=$(kubectl get deployment maildev --namespace=$NAMESPACE $KUBECTL_CONTEXT -o jsonpath='{.metadata.labels.app\.kubernetes\.io/instance}' 2>/dev/null || true)
+          OWNER=$(kubectl get deployment maildev --namespace=$NAMESPACE $KUBECTL_CONTEXT --ignore-not-found -o jsonpath='{.metadata.annotations.meta\.helm\.sh/release-name}') || {
+            echo "[FATAL] could not read deployment/maildev in $NAMESPACE"
+            exit 1
+          }
           if [ -z "$OWNER" ] || [ "$OWNER" = "maildev" ]; then break; fi
           echo "deployment/maildev in $NAMESPACE still belongs to the $OWNER release, waiting ($attempt/80)"
           sleep 15
