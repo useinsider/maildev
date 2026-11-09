@@ -85,6 +85,44 @@ describe('email', () => {
     })
   })
 
+  it('should keep link, target and form attributes while stripping event handlers', async () => {
+    const emailForTest = {
+      from: 'johnny.utah@fbi.gov',
+      to: 'bodhi@gmail.com',
+      subject: 'Test sanitize config',
+      html: '<!DOCTYPE html><html><head>' +
+            '<link rel="stylesheet" href="https://example.com/s.css">' +
+            '</head><body>' +
+            '<a href="https://example.com" target="_blank">link</a>' +
+            '<form id="f" name="f"><input name="q"></form>' +
+            '<img src="x" onerror="alert(1)">' +
+            '</body></html>'
+    }
+
+    return new Promise((resolve, reject) => {
+      maildev.on('new', (email) => {
+        if (email.subject === emailForTest.subject) {
+          maildev.getEmailHTML(email.id, async (_, html) => {
+            const contentWithoutNewLine = html.replace(/\n/g, '')
+            try {
+              assert.strictEqual(contentWithoutNewLine,
+                '<html><head><link rel="stylesheet" href="https://example.com/s.css"></head><body>' +
+                '<a href="https://example.com" target="_blank">link</a>' +
+                '<form id="f" name="f"><input name="q"></form>' +
+                '<img src="x">' +
+                '</body></html>')
+            } catch (err) {
+              return reject(err)
+            }
+            resolve()
+          })
+        }
+      })
+
+      transporter.sendMail(emailForTest)
+    })
+  })
+
   it('should preserve html with table elements', async () => {
     const emailForTest = {
       from: 'johnny.utah@fbi.gov',

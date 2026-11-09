@@ -2,6 +2,7 @@
 'use strict'
 const jest = require('jest-mock')
 const expect = require('expect').expect
+const net = require('net')
 const SMTPServer = require('smtp-server').SMTPServer
 const outgoing = require('../lib/outgoing')
 const smptHelpers = require('../lib/helpers/smtp')
@@ -141,6 +142,66 @@ describe('outgoing', () => {
           expect(typeof err).toBe('undefined')
           outgoing.close()
           smtpserver.close(done)
+        })
+      })
+    })
+
+    it('should retry login on the next relay after an authentication failure', (done) => {
+      const port = getPort()
+      const smtpserver = new SMTPServer({
+        onAuth: smptHelpers.createOnAuthCallback('testuser', 'testpassword')
+      })
+      smtpserver.listen(port, (err) => {
+        expect(typeof err).toBe('undefined')
+        outgoing.setup(null, port, 'testuser', 'wrongpassword')
+
+        const email = {
+          envelope: {
+            to: ['receiver@test.com'],
+            from: ['sender@test.com']
+          },
+          subject: 'Test email'
+        }
+        const message = 'A test email body'
+
+        outgoing.relayMail(email, message, false, (firstErr) => {
+          expect(firstErr.code).toBe('EAUTH')
+          outgoing.relayMail(email, message, false, (secondErr) => {
+            expect(secondErr.code).toBe('EAUTH')
+            outgoing.close()
+            smtpserver.close(done)
+          })
+        })
+      })
+    })
+
+    it('should relay on the next attempt after a connection failure', (done) => {
+      const port = getPort()
+      const email = {
+        envelope: {
+          to: ['receiver@test.com'],
+          from: ['sender@test.com']
+        },
+        subject: 'Test email'
+      }
+      const message = 'A test email body'
+
+      const closingServer = net.createServer((socket) => socket.destroy())
+      closingServer.listen(port, () => {
+        outgoing.setup(null, port)
+        outgoing.relayMail(email, message, false, (firstErr) => {
+          expect(firstErr.code).toBe('ECONNECTION')
+          closingServer.close(() => {
+            const smtpserver = new SMTPServer({ authOptional: true })
+            smtpserver.listen(port, (err) => {
+              expect(typeof err).toBe('undefined')
+              outgoing.relayMail(email, message, false, (secondErr) => {
+                expect(typeof secondErr).toBe('undefined')
+                outgoing.close()
+                smtpserver.close(done)
+              })
+            })
+          })
         })
       })
     })
